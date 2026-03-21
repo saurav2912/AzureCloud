@@ -20,7 +20,7 @@ public class CosmosDBApp {
         addRecords();
         //readRecords();
         //updateRecords();
-        //insertSubjects();
+        insertSubjects();
         //deleteRecord();
         //deleteContainer();
         //deleteDatabase();
@@ -39,9 +39,9 @@ public class CosmosDBApp {
     private static void addRecords() {
         CosmosClient client = new CosmosClientBuilder().endpoint(COSMOS_URL).key(CONNECTION_KEY).buildClient();
         CosmosContainer container = client.getDatabase("StudentDB").getContainer("StudentContainer");
-        Student student1 = new Student("4","Rakesh", "Bangalore", 30, "IT");
-        Student student2 = new Student("5","Ravi", "Delhi", 20, "Operation");
-        Student student3 = new Student("6","Rekha", "Bangalore", 23, "Cleaning");
+        Student student1 = new Student("43","Rakesh", "Bangalore", 30, "IT");
+        Student student2 = new Student("53","Ravi", "Delhi", 20, "Operation");
+        Student student3 = new Student("63","Rekha", "Bangalore", 23, "Cleaning");
         CosmosItemRequestOptions options = new CosmosItemRequestOptions();
         options.setPreTriggerInclude(List.of("dateTrigger"));
         container.createItem(student1,new PartitionKey(student1.getDepartment()), options);

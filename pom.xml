@@ -47,6 +47,36 @@
             <version>12.5.9</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-storage-file-share</artifactId>
+            <version>12.23.0</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-identity</artifactId>
+            <version>1.18.2</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-security-keyvault-secrets</artifactId>
+            <version>4.10.5</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-security-keyvault-keys</artifactId>
+            <version>4.10.5</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-security-keyvault-certificates</artifactId>
+            <version>4.8.5</version>
+            <scope>compile</scope>
+        </dependency>
     </dependencies>
 
 </project>
