@@ -4,7 +4,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class AzureCloudApplication {
+public class AzureCloudApplication { 
 
     public static void main(String[] args) {
         String ACTIVE_PROFILE = System.getenv("ACTIVE_PROFILE");
