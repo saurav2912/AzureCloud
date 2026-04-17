@@ -21,9 +21,12 @@ public class StorageQueueApp {
     @Value("${storage.queue.endpoint}")
     private String endpoint;
 
+    @Value("${mi.clientId}")
+    private String miClientId;
+
 
     private QueueClient buildQueue(String qName) {
-        DefaultAzureCredential credential = new DefaultAzureCredentialBuilder().build();
+        DefaultAzureCredential credential = new DefaultAzureCredentialBuilder().managedIdentityClientId(miClientId).build();
         QueueClient client = new QueueClientBuilder().credential(credential).endpoint(endpoint)
                 .queueName(qName)
                 .buildClient();
