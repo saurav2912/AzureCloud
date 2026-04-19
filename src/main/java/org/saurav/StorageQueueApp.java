@@ -1,5 +1,6 @@
 package org.saurav;
 
+import com.azure.core.http.rest.PagedIterable;
 import com.azure.identity.DefaultAzureCredential;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.storage.queue.QueueClient;
@@ -69,8 +70,17 @@ public class StorageQueueApp {
 
     }
 
-    private static void peekMessage(QueueClient client) {
-
+    public List<String> peekMessages(String queueName) {
+        List<String> messages= null;
+        try {
+            QueueClient client = buildQueue(queueName);
+            Long length = client.getProperties().getApproximateMessagesCountLong();
+            PagedIterable<PeekedMessageItem> messageList = client.peekMessages(length.intValue(),null,null);
+            messages = messageList.stream().map(String::valueOf).toList();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return messages;
     }
 
     private static void recieveMessage(QueueClient client) {
