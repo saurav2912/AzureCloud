@@ -31,8 +31,9 @@ public class QueueController {
         return ResponseEntity.ok(status);
     }
 
-    @GetMapping
-    public ResponseEntity<String> getQueueMessages() {
-        return ResponseEntity.ok("");
+    @GetMapping("/getAllMessage")
+    public ResponseEntity<List<String>> getQueueMessages(@RequestParam("qName") String queueName) {
+        List<String> allMsg = queue.peekMessages(queueName);
+        return ResponseEntity.ok(allMsg);
     }
 }
