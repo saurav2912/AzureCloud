@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.Iterator;
+import java.util.List;
 
 @Service
 public class StorageQueueApp {
@@ -26,7 +27,14 @@ public class StorageQueueApp {
 
 
     private QueueClient buildQueue(String qName) {
-        DefaultAzureCredential credential = new DefaultAzureCredentialBuilder().managedIdentityClientId(miClientId).build();
+        String ACTIVE_PROFILE = System.getenv("ACTIVE_PROFILE");
+        DefaultAzureCredential credential;
+        if("local".equals(ACTIVE_PROFILE)) {
+            credential = new DefaultAzureCredentialBuilder().build();
+        } else {
+            credential = new DefaultAzureCredentialBuilder().managedIdentityClientId(miClientId).build();
+        }
+
         QueueClient client = new QueueClientBuilder().credential(credential).endpoint(endpoint)
                 .queueName(qName)
                 .buildClient();
@@ -47,8 +55,17 @@ public class StorageQueueApp {
         return message;
     }
 
-    private static void sendmessage(QueueClient client) throws JsonProcessingException {
-
+    public String sendmessage(String queueName, List<String> messages) {
+        String message = "";
+        try {
+            QueueClient client = buildQueue(queueName);
+            messages.forEach(m->client.sendMessage(m));
+            message = "Messages are successfully pushed ";
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            message = "Message Pushing Failed";
+        }
+        return message;
 
     }
 
