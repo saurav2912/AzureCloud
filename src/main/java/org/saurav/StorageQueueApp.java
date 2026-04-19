@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class StorageQueueApp {
@@ -70,31 +71,87 @@ public class StorageQueueApp {
 
     }
 
+    public String sendStudent(String queueName, List<Student> students) {
+        String message = "";
+        try {
+            QueueClient client = buildQueue(queueName);
+            students.forEach(s-> {
+                try {
+                    client.sendMessage(new ObjectMapper().writeValueAsString(s));
+                } catch (JsonProcessingException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            message = "Messages are successfully pushed ";
+        }catch (Exception ex) {
+            ex.printStackTrace();
+            message = "Message Pushing Failed";
+        }
+        return message;
+
+    }
+
     public List<String> peekMessages(String queueName) {
         List<String> messages= null;
         try {
             QueueClient client = buildQueue(queueName);
             Long length = client.getProperties().getApproximateMessagesCountLong();
             PagedIterable<PeekedMessageItem> messageList = client.peekMessages(length.intValue(),null,null);
-            messages = messageList.stream().map(String::valueOf).toList();
+            messages = messageList.stream().map(m->m.getMessageText()).toList();
         } catch (Exception ex) {
             ex.printStackTrace();
         }
         return messages;
     }
 
-    private static void recieveMessage(QueueClient client) {
-
+    public List<String> recieveMessage(String queueName) {
+        List<String> messages= null;
+        try {
+            QueueClient client = buildQueue(queueName);
+            Long length = client.getProperties().getApproximateMessagesCountLong();
+            PagedIterable<QueueMessageItem> messageList = client.receiveMessages(length.intValue());
+            messages = messageList.stream().map(m->m.getMessageText()).toList();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return messages;
     }
 
-    private static void updateMessage(QueueClient client) {
+    public String updateMessage(String queueName, String id) {
+        String message = "";
+        try {
+            QueueClient client = buildQueue(queueName);
+            Long length = client.getProperties().getApproximateMessagesCountLong();
+            for (int i=0;i<length.intValue();i++) {
+                QueueMessageItem item =  client.receiveMessage();
+                Student stu = new ObjectMapper().readValue(item.getMessageText(), Student.class);
+                if(stu.getId().equals(id)) {
+                    stu.setAge(40);
+                    client.updateMessage(item.getMessageId(), item.getPopReceipt(),new ObjectMapper().writeValueAsString(stu),null);
+                }
+            }
 
+            message = "Messages are successfully updated ";
+        }catch (Exception ex) {
+            ex.printStackTrace();
+            message = "Message Update Failed";
+        }
+        return message;
     }
     private static void getQueueLength(QueueClient client) {
     }
 
-    private static void deleteMessages(QueueClient client) {
-
+    public String deleteAllMessages(String queueName) {
+        String message = "";
+        try {
+            QueueClient client = buildQueue(queueName);
+            client.clearMessages();
+            message = "All messsages cleared from queue: "+queueName;
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            message = "Message clearance failed";
+        }
+        return message;
     }
 
     public String deleteQueue(String queueName) {
