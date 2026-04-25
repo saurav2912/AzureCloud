@@ -1,127 +1,171 @@
 package org.saurav;
 
+import com.azure.identity.DefaultAzureCredential;
+import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.messaging.servicebus.*;
-import com.azure.messaging.servicebus.models.SubQueue;
+import com.azure.messaging.servicebus.administration.ServiceBusAdministrationClient;
+import com.azure.messaging.servicebus.administration.ServiceBusAdministrationClientBuilder;
+import com.azure.messaging.servicebus.models.ServiceBusReceiveMode;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 
-import java.util.Iterator;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
+@Service
 public class ServiceBusQueueApp {
 
-    public static void main(String[] args) {
-        String serviceBusSendConnectionString = System.getenv("AZURE_SERVICE_BUS_SEND_CONNECTION_STRING");
-        String serviceBusListenConnectionString = System.getenv("AZURE_SERVICE_BUS_LISTEN_CONNECTION_STRING");
-        String queueName = "sauravqueue";
-        ServiceBusSenderClient senderClient = buildSenderClient(queueName, serviceBusSendConnectionString);
-        ServiceBusReceiverClient recieverClient = buildRecieverClient(queueName, serviceBusListenConnectionString);
-        //sendMessage(senderClient);
-        //sendMessageBatch(senderClient);
-        //peekMessages(recieverClient);
-        //peekMessagesFrmDeadLetterQueue(queueName,serviceBusListenConnectionString);
-        //recieveMessages(recieverClient);
-        //completeMessages(recieverClient);
-        duplicateMessageTest();
+    @Value("${mi.clientId}")
+    private String miClientId;
+
+    private static final String QUALIFIED_NAME_SBUS = "sb-sauravaz.servicebus.windows.net";
+
+    private DefaultAzureCredential getCredential() {
+        DefaultAzureCredential credential;
+        String ACTIVE_PROFILE = System.getenv("ACTIVE_PROFILE");
+        if("local".equalsIgnoreCase(ACTIVE_PROFILE)) {
+            credential = new DefaultAzureCredentialBuilder().build();
+        } else {
+            credential = new DefaultAzureCredentialBuilder().managedIdentityClientId(miClientId).build();
+        }
+        return credential;
     }
 
-    private static ServiceBusReceiverClient buildRecieverClient(String queueName, String serviceBusConnectionString) {
-        ServiceBusReceiverClient client = new ServiceBusClientBuilder()
-                .connectionString(serviceBusConnectionString)
-                .receiver()
-                .queueName(queueName)
-                .buildClient();
+    private ServiceBusReceiverClient buildRecieverClient(String queueName) {
+        DefaultAzureCredential credential = getCredential();
+        ServiceBusReceiverClient client = new ServiceBusClientBuilder().credential(credential).fullyQualifiedNamespace(QUALIFIED_NAME_SBUS)
+                .receiver().queueName(queueName).receiveMode(ServiceBusReceiveMode.RECEIVE_AND_DELETE).
+                buildClient();
         return client;
     }
 
-    private static ServiceBusSenderClient buildSenderClient(String queueName, String serviceBusConnectionString) {
-        ServiceBusSenderClient client = new ServiceBusClientBuilder()
-                .connectionString(serviceBusConnectionString)
-                .sender()
-                .queueName(queueName)
-                .buildClient();
+    private ServiceBusSenderClient buildSenderClient(String queueName) {
+        DefaultAzureCredential credential = getCredential();
+        ServiceBusSenderClient client = new ServiceBusClientBuilder().credential(credential).fullyQualifiedNamespace(QUALIFIED_NAME_SBUS)
+                .sender().queueName(queueName).buildClient();
         return client;
     }
 
-    private static void sendMessage(ServiceBusSenderClient client) {
-        ServiceBusMessage message1 = new ServiceBusMessage("First Message");
-        ServiceBusMessage message2 = new ServiceBusMessage("Second Message");
-        ServiceBusMessage message3 = new ServiceBusMessage("Third Message");
-        client.sendMessage(message1);
-        client.sendMessage(message2);
-        client.sendMessage(message3);
+    public String sendMessage(String queueName,String message) {
+        String status = "";
+        try {
+            ServiceBusSenderClient client = buildSenderClient(queueName);
+            client.sendMessage(new ServiceBusMessage(message));
+            status = "Message Sent Successfully";
+        } catch(Exception ex) {
+            ex.printStackTrace();
+            status = "Message Sending Failed";
+        }
+        return status;
     }
 
-    private static void sendMessageBatch(ServiceBusSenderClient client) {
+    public String sendMessageBatch(String queueName,List<String> messages) {
+        String status = "";
+        try {
+            ServiceBusSenderClient client = buildSenderClient(queueName);
+            ServiceBusMessageBatch batch = client.createMessageBatch();
+            AtomicInteger i = new AtomicInteger(0);
+            messages.forEach(m->{
+                ServiceBusMessage msg = new ServiceBusMessage(m);
+                msg.setMessageId(String.valueOf(i.incrementAndGet()));
+                msg.setContentType("Text");
+                msg.setSubject("Testing message Batch");
+                msg.getApplicationProperties().put(String.valueOf(i.get()),"Value"+i.get());
+                batch.tryAddMessage(msg);
+            });
+            client.sendMessages(batch);
+            status = "Message Sent Successfully";
+        } catch(Exception ex) {
+            ex.printStackTrace();
+            status = "Message Sending Failed";
+        }
+        return status;
+    }
 
-        ServiceBusMessage [] messages = {
-                new ServiceBusMessage("First Batch Message"),
-                new ServiceBusMessage("Second Batch Message"),
-                new ServiceBusMessage("Third Batch Message")
-        };
-        ServiceBusMessageBatch messegeBatch = client.createMessageBatch();
-        for (ServiceBusMessage message : messages) {
-            if (!messegeBatch.tryAddMessage(message)) {
-                throw new IllegalArgumentException("Message is too large to fit in the batch.");
+    public String peekMessage(String queueName) {
+        String message = null;
+        try {
+            ServiceBusReceiverClient client = buildRecieverClient(queueName);
+            ServiceBusReceivedMessage receivedMessage=client.peekMessage();
+            if(null==receivedMessage) {
+                client = buildRecieverClient(queueName+"/$deadletterqueue");
+                receivedMessage = client.peekMessage();
             }
+            message = receivedMessage.getBody().toString();
+        } catch(Exception ex) {
+            ex.printStackTrace();
         }
-        client.sendMessages(messegeBatch);
+        return message;
     }
 
-    private static void peekMessages(ServiceBusReceiverClient client) {
-        Iterable<ServiceBusReceivedMessage> messages = client.peekMessages(10);
-        Iterator<ServiceBusReceivedMessage> msgIterator = messages.iterator();
-        while (msgIterator.hasNext()) {
-            ServiceBusReceivedMessage message = msgIterator.next();
-            System.out.println(message.getMessageId());
-            System.out.println(message.getBody().toString());
+    public List<String> recieveMessages(String queueName, boolean isDead) {
+        List<String> messages = new ArrayList<>();
+        try {
+            ServiceBusReceiverClient client = null;
+            if(isDead) {
+                client = buildRecieverClient(queueName+"/$deadletterqueue");
+            } else {
+                client = buildRecieverClient(queueName);
+            }
+            Iterable<ServiceBusReceivedMessage> messagesIter = client.receiveMessages(50);
+            messagesIter.forEach(i->messages.add(i.getBody().toString()));
+        } catch (Exception ex) {
+            ex.printStackTrace();
         }
-    }
-
-    private static void recieveMessages(ServiceBusReceiverClient recieverClient) {
-        Iterable<ServiceBusReceivedMessage> messages = recieverClient.receiveMessages(10);
-        Iterator<ServiceBusReceivedMessage> msgIterator = messages.iterator();
-        while (msgIterator.hasNext()) {
-            ServiceBusReceivedMessage message = msgIterator.next();
-            System.out.println(message.getMessageId());
-            System.out.println(message.getBody().toString());
-        }
+        return messages;
     }
 
 
-    private static void completeMessages(ServiceBusReceiverClient recieverClient) {
-        Iterable<ServiceBusReceivedMessage> messages = recieverClient.receiveMessages(10);
-        Iterator<ServiceBusReceivedMessage> msgIterator = messages.iterator();
-        while (msgIterator.hasNext()) {
-            ServiceBusReceivedMessage message = msgIterator.next();
-            System.out.println(message.getMessageId());
-            System.out.println(message.getBody().toString());
-            recieverClient.complete(message);
+    public List<String> completeMessages(String queueName, boolean isDead) {
+        List<String> messages = new ArrayList<>();
+        try {
+            AtomicReference<ServiceBusReceiverClient> atomicReference = new AtomicReference<>();
+             ServiceBusReceiverClient client = null;
+            if(isDead) {
+                client = buildRecieverClient(queueName+"/$deadletterqueue");
+            } else {
+                client = buildRecieverClient(queueName);
+            }
+            atomicReference.set(client);
+            Iterable<ServiceBusReceivedMessage> messagesIter = client.receiveMessages(50);
+            messagesIter.forEach(i-> {
+                messages.add(i.getBody().toString());
+                atomicReference.get().complete(i);
+            });
+        } catch (Exception ex) {
+            ex.printStackTrace();
         }
+        return messages;
     }
 
-    private static void peekMessagesFrmDeadLetterQueue(String queueName, String serviceBusListenConnectionString) {
-        ServiceBusReceiverClient client = new ServiceBusClientBuilder()
-                .connectionString(serviceBusListenConnectionString)
-                .receiver()
-                .queueName(queueName)
-                .subQueue(SubQueue.DEAD_LETTER_QUEUE)
-                .buildClient();
-        Iterable<ServiceBusReceivedMessage> messages = client.peekMessages(10);
-        Iterator<ServiceBusReceivedMessage> msgIterator = messages.iterator();
-        while (msgIterator.hasNext()) {
-            ServiceBusReceivedMessage message = msgIterator.next();
-            System.out.println(message.getMessageId());
-            System.out.println(message.getBody().toString());
+    public List<String> peekMessages(String queueName) {
+        List<String> messages = new ArrayList<>();
+        try {
+            ServiceBusReceiverClient client = buildRecieverClient(queueName);
+            Iterable<ServiceBusReceivedMessage> messagesIter = client.peekMessages(20);
+            messagesIter.forEach(i->messages.add(i.getBody().toString()));
+        } catch (Exception ex) {
+            ex.printStackTrace();
         }
+        return messages;
+    }
+
+    public List<String> peekMessagesFrmDeadLetterQueue(String queueName) {
+        List<String> messages = new ArrayList<>();
+        try {
+            ServiceBusReceiverClient client = buildRecieverClient(queueName+"/$deadletterqueue");
+            Iterable<ServiceBusReceivedMessage> messagesIter = client.peekMessages(20);
+            messagesIter.forEach(i->messages.add(i.getBody().toString()));
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return messages;
     }
 
     private static void duplicateMessageTest() {
-        String connectionString = "Endpoint=sb://sbus-saurav-az.servicebus.windows.net/;SharedAccessKeyName=sendPolicy;SharedAccessKey=1ZTCPTXM68PJLrr5CQUu29aZoSISLJh7E+ASbAuV6oo=;EntityPath=sauravqueue2";
-        String queueName = "sauravqueue2";
-        ServiceBusSenderClient senderClient = buildSenderClient(queueName, connectionString);
-        for(int i=1;i<5;i++) {
-            ServiceBusMessage message = new ServiceBusMessage("Duplicate Message " + i);
-            message.setMessageId(String.valueOf(i));
-            senderClient.sendMessage(message);
-        }
+
     }
 
 }
