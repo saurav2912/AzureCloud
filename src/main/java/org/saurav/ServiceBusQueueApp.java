@@ -9,6 +9,7 @@ import com.azure.messaging.servicebus.models.ServiceBusReceiveMode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -109,7 +110,7 @@ public class ServiceBusQueueApp {
             } else {
                 client = buildRecieverClient(queueName);
             }
-            Iterable<ServiceBusReceivedMessage> messagesIter = client.receiveMessages(50);
+            Iterable<ServiceBusReceivedMessage> messagesIter = client.receiveMessages(50, Duration.ofMinutes(1));
             messagesIter.forEach(i->messages.add(i.getBody().toString()));
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -129,7 +130,7 @@ public class ServiceBusQueueApp {
                 client = buildRecieverClient(queueName);
             }
             atomicReference.set(client);
-            Iterable<ServiceBusReceivedMessage> messagesIter = client.receiveMessages(50);
+            Iterable<ServiceBusReceivedMessage> messagesIter = client.receiveMessages(50,Duration.ofMinutes(1));
             messagesIter.forEach(i-> {
                 messages.add(i.getBody().toString());
                 atomicReference.get().complete(i);
