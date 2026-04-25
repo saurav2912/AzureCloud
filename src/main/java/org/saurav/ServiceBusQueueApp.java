@@ -3,8 +3,6 @@ package org.saurav;
 import com.azure.identity.DefaultAzureCredential;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.messaging.servicebus.*;
-import com.azure.messaging.servicebus.administration.ServiceBusAdministrationClient;
-import com.azure.messaging.servicebus.administration.ServiceBusAdministrationClientBuilder;
 import com.azure.messaging.servicebus.models.ServiceBusReceiveMode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;

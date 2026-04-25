@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @RestController
-public class ServiceBusController {
+public class ServiceBusQueueController {
 
     @Autowired
     private ServiceBusQueueApp sbusQueue;
