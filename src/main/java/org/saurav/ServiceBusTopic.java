@@ -1,73 +1,159 @@
 package org.saurav;
 
-import com.azure.messaging.servicebus.ServiceBusClientBuilder;
-import com.azure.messaging.servicebus.ServiceBusMessage;
-import com.azure.messaging.servicebus.ServiceBusReceiverClient;
-import com.azure.messaging.servicebus.ServiceBusSenderClient;
+import com.azure.identity.DefaultAzureCredential;
+import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.azure.messaging.servicebus.*;
+import com.azure.messaging.servicebus.administration.ServiceBusAdministrationClient;
+import com.azure.messaging.servicebus.administration.ServiceBusAdministrationClientBuilder;
+import com.azure.messaging.servicebus.models.ServiceBusReceiveMode;
+import com.azure.messaging.servicebus.models.SubQueue;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.util.ObjectUtils;
 
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+
+@Service
 public class ServiceBusTopic {
 
-    public static void main(String[] args) {
-        String topicConnectionString = System.getenv("AZURE_SERVICE_BUS_TOP_MANAGE_CONNECTION_STRING");
-        ServiceBusReceiverClient receiverClient = builtReceiverClient(topicConnectionString);
-        ServiceBusSenderClient senderClient = builtSenderClient(topicConnectionString);
-        sendMessage(senderClient);
-        //reciveMessages(receiverClient);
+    @Value("${mi.clientId}")
+    private String miClientId;
+
+    private final static String QUALIFIED_NAME="sb-sauravaz.servicebus.windows.net";
+    private final static String END_POINT = "https://sb-sauravaz.servicebus.windows.net";
+
+    private DefaultAzureCredential getCredential() {
+        DefaultAzureCredential credential;
+        String profile = System.getenv("ACTIVE_PROFILE");
+        if(profile.equalsIgnoreCase("local"))
+            credential = new DefaultAzureCredentialBuilder().build();
+        else
+            credential = new DefaultAzureCredentialBuilder().managedIdentityClientId(miClientId).build();
+        return credential;
     }
 
-
-    private static ServiceBusSenderClient builtSenderClient(String topicConnectionString) {
-        ServiceBusSenderClient client = new ServiceBusClientBuilder()
-                .connectionString(topicConnectionString)
-                .sender()
-                .topicName("saurav-az-topic")
-                .buildClient();
-        return client;
-    }
-
-    private static ServiceBusReceiverClient builtReceiverClient(String topicConnectionString) {
-        ServiceBusReceiverClient client = new ServiceBusClientBuilder()
-                .connectionString(topicConnectionString)
-                .receiver()
-                .topicName("saurav-az-topic")
-                .subscriptionName("sub2")
-                .buildClient();
-        return client;
-    }
-
-    private static void sendMessage(ServiceBusSenderClient senderClient) {
-
-        ObjectMapper mapper = new ObjectMapper();
+    public String createTopic(String topicName) {
+        String status = "";
         try {
-                ServiceBusMessage message1 = new ServiceBusMessage(mapper.writeValueAsString(new Student("1","Saurav","Tulasipur",35,"Finance")));
-                message1.getApplicationProperties().put("Department","Finance");
-                ServiceBusMessage message2 = new ServiceBusMessage(mapper.writeValueAsString(new Student("2","Swati","Rajabagicha",33,"HR")));
-                message2.getApplicationProperties().put("Department","HR");
-                ServiceBusMessage message3 = new ServiceBusMessage(mapper.writeValueAsString(new Student("3","Satyam","Tulasipur",53,"IT")));
-                message3.getApplicationProperties().put("Department","IT");
-                senderClient.sendMessage(message1);
-                senderClient.sendMessage(message2);
-                senderClient.sendMessage(message3);
-
-            } catch (Exception e) {
-                System.out.println("Error sending message: " + e.getMessage());
-            } finally {
-                senderClient.close();
+            ServiceBusAdministrationClient client = new ServiceBusAdministrationClientBuilder().credential(getCredential())
+                    .endpoint(END_POINT).buildClient();
+            client.createTopic(topicName);
+            status = "Topic Created Successfully with name : "+topicName;
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            status = "Topic Creation failed";
         }
-
+        return status;
     }
-    private static void reciveMessages(ServiceBusReceiverClient receiverClient) {
+
+    private ServiceBusSenderClient builtSenderClient(String topicName) {
+        ServiceBusSenderClient client= new ServiceBusClientBuilder().credential(getCredential()).
+                fullyQualifiedNamespace(QUALIFIED_NAME).sender().topicName(topicName).buildClient();
+        return client;
+    }
+
+    private ServiceBusReceiverClient builtReceiverClient(String topicName,String subName) {
+        ServiceBusReceiverClient client= new ServiceBusClientBuilder().credential(getCredential()).
+                fullyQualifiedNamespace(QUALIFIED_NAME).
+                receiver().topicName(topicName).subscriptionName(subName).receiveMode(ServiceBusReceiveMode.RECEIVE_AND_DELETE).
+                buildClient();
+        return client;
+    }
+
+    private ServiceBusReceiverClient builtReceiverClientforDeadLetterqueue(String topicName,String subName) {
+        ServiceBusReceiverClient client= new ServiceBusClientBuilder().credential(getCredential()).
+                fullyQualifiedNamespace(QUALIFIED_NAME).
+                receiver().topicName(topicName).subQueue(SubQueue.DEAD_LETTER_QUEUE).
+                subscriptionName(subName).receiveMode(ServiceBusReceiveMode.RECEIVE_AND_DELETE).
+                buildClient();
+        return client;
+    }
+
+
+
+
+    public String sendMessage(String topicName,String message) {
+        String status="";
         try {
-            receiverClient.receiveMessages(10).forEach(message -> {
-                System.out.println("Received message: " + message.getBody().toString());
-                receiverClient.complete(message);
+            ServiceBusSenderClient client = builtSenderClient(topicName);
+            client.sendMessage(new ServiceBusMessage(message));
+            status = "Message sent Successfully";
+        } catch(Exception ex) {
+            ex.printStackTrace();
+            status = "Message sending failed";
+        }
+        return status;
+    }
+
+    public String sendMessages(String topicName, List<String> messages) {
+        String status="";
+        try {
+            ServiceBusSenderClient client = builtSenderClient(topicName);
+            ServiceBusMessageBatch batch = client.createMessageBatch();
+            messages.forEach(m->batch.tryAddMessage(new ServiceBusMessage(m)));
+            client.sendMessages(batch);
+            status = "Message List sent Successfully";
+        } catch(Exception ex) {
+            ex.printStackTrace();
+            status = "Message sending failed";
+        }
+        return status;
+    }
+
+    public String sendStudents(String topicName, List<Student> studentList) {
+        String status="";
+        try {
+            ServiceBusSenderClient client = builtSenderClient(topicName);
+            ServiceBusMessageBatch batch = client.createMessageBatch();
+            studentList.forEach(s-> {
+                try {
+                    batch.tryAddMessage(new ServiceBusMessage(new ObjectMapper().writeValueAsString(s)));
+                } catch (JsonProcessingException e) {
+                    throw new RuntimeException(e);
+                }
             });
-        } catch (Exception e) {
-            System.out.println("Error receiving messages: " + e.getMessage());
-        } finally {
-            receiverClient.close();
+            client.sendMessages(batch);
+            status = "Message List sent Successfully";
+        } catch(Exception ex) {
+            ex.printStackTrace();
+            status = "Message sending failed";
         }
+        return status;
+    }
+    public List<String> receiveMessages(String topicName, String subscription) {
+        List<String> messages=new ArrayList<>();
+        try {
+            ServiceBusReceiverClient client = builtReceiverClient(topicName,subscription);
+            Iterable<ServiceBusReceivedMessage> msgList = client.receiveMessages(50, Duration.ofMinutes(1));
+            if(!msgList.iterator().hasNext()) {
+                client = builtReceiverClientforDeadLetterqueue(topicName,subscription);
+                msgList = client.receiveMessages(50,Duration.ofMinutes(1));
+            }
+            msgList.forEach(m->messages.add(m.getBody().toString()));
+        } catch(Exception ex) {
+            ex.printStackTrace();
+        }
+        return messages;
+    }
+
+    public List<String> receiveMessage(String topicName, String subscription) {
+        List<String> messageList= new ArrayList<>();
+        try {
+            ServiceBusReceiverClient client = builtReceiverClient(topicName,subscription);
+            Iterable<ServiceBusReceivedMessage> msgs = client.peekMessages(20);
+            if(!msgs.iterator().hasNext()) {
+                client = builtReceiverClientforDeadLetterqueue(topicName,subscription);
+                msgs = client.peekMessages(20);
+            }
+            msgs.forEach(m->messageList.add(m.getBody().toString()));
+        } catch(Exception ex) {
+            ex.printStackTrace();
+        }
+        return messageList;
     }
 
 }
