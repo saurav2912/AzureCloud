@@ -113,6 +113,7 @@ public class ServiceBusTopic {
                 try {
                     ServiceBusMessage sbMsg = new ServiceBusMessage(new ObjectMapper().writeValueAsString(s));
                     sbMsg.getApplicationProperties().put("department",s.getDepartment());
+                    sbMsg.setMessageId(s.getId());
                     batch.tryAddMessage(sbMsg);
                 } catch (JsonProcessingException e) {
                     throw new RuntimeException(e);
