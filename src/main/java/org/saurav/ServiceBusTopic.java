@@ -111,7 +111,9 @@ public class ServiceBusTopic {
             ServiceBusMessageBatch batch = client.createMessageBatch();
             studentList.forEach(s-> {
                 try {
-                    batch.tryAddMessage(new ServiceBusMessage(new ObjectMapper().writeValueAsString(s)));
+                    ServiceBusMessage sbMsg = new ServiceBusMessage(new ObjectMapper().writeValueAsString(s));
+                    sbMsg.getApplicationProperties().put("department",s.getDepartment());
+                    batch.tryAddMessage(sbMsg);
                 } catch (JsonProcessingException e) {
                     throw new RuntimeException(e);
                 }
