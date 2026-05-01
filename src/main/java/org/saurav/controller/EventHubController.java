@@ -16,32 +16,32 @@ public class EventHubController {
 
 
     @PostMapping("/ingest")
-    public ResponseEntity<String> ingestEvent(@RequestBody List<String> list) {
-        String status = eventService.ingestStringEvents(list);
+    public ResponseEntity<String> ingestEvent(@RequestBody List<String> list,@RequestHeader String hubName) {
+        String status = eventService.ingestStringEvents(list,hubName);
         return ResponseEntity.ok(status);
     }
 
     @PostMapping("/ingest/students")
-    public ResponseEntity<String> ingestStudents(@RequestBody List<Student> list) {
-        String status = eventService.ingestStudentEvents(list);
+    public ResponseEntity<String> ingestStudents(@RequestBody List<Student> list, @RequestHeader String hubName) {
+        String status = eventService.ingestStudentEvents(list,hubName);
         return ResponseEntity.ok(status);
     }
 
     @GetMapping("/egress/{id}")
-    public ResponseEntity<List<String>> processEvent(@PathVariable String id) {
-        List<String> eventList = eventService.processEventByPartition(id);
+    public ResponseEntity<List<String>> processEvent(@PathVariable String id,@RequestHeader String hubName,@RequestHeader String consGrp) {
+        List<String> eventList = eventService.processEventByPartition(id,hubName,consGrp);
         return ResponseEntity.ok(eventList);
     }
 
     @GetMapping("/egress")
-    public ResponseEntity<String> processEvent() {
-        String status = eventService.processEvents();
+    public ResponseEntity<String> processEvent(@RequestHeader String hubName,@RequestHeader String consGrp) {
+        String status = eventService.processEvents(hubName,consGrp);
         return ResponseEntity.ok(status);
     }
 
     @GetMapping("/stop/egress")
-    public ResponseEntity<String> stopProcessEvent() {
-        String status = eventService.stopEvents();
+    public ResponseEntity<String> stopProcessEvent(@RequestHeader String hubName,@RequestHeader String consGrp) {
+        String status = eventService.stopEvents(hubName,consGrp);
         return ResponseEntity.ok(status);
     }
 }
